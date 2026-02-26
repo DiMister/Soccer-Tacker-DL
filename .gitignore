@@ -1,5 +1,8 @@
 dataset_football/
+SportsMOT/
 yolov*.pt
+outputs/
+runs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
