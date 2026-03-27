@@ -1,10 +1,12 @@
+import argparse
 from pathlib import Path
 
 from ultralytics import YOLO
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DATASET_ROOT = REPO_ROOT / "dataset_football"
-YAML_PATH = REPO_ROOT / "yolo" / "football.yaml"
+YAML_PATH = REPO_ROOT / "training" / "football.yaml"
+RUNS_TRAIN_ROOT = REPO_ROOT / "runs" / "train"
 
 
 def convert_split(split: str) -> None:
@@ -77,26 +79,51 @@ def write_yaml() -> None:
 	print(f"Dataset YAML written: {YAML_PATH}")
 
 
-def main() -> int:
+def resolve_resume_checkpoint(run_name: str) -> Path:
+	checkpoint = RUNS_TRAIN_ROOT / run_name / "weights" / "last.pt"
+	if not checkpoint.exists():
+		raise FileNotFoundError(
+			f"Could not find checkpoint for run '{run_name}' at: {checkpoint}"
+		)
+	return checkpoint
+
+
+def main(resume_run_name: str | None = None) -> int:
 	print("Converting MOT annotations to YOLO labels...")
 	convert_split("train")
 	convert_split("val")
 
 	write_yaml()
 
-	model = YOLO("yolo26n.pt")
-	model.train(
-		data=str(YAML_PATH),
-		epochs=50,
-		imgsz=640,
-		batch=16,
-		workers=0,
-		project=str(REPO_ROOT / "runs" / "train"),
-		name="football_yolo26n",
-	)
+	if resume_run_name:
+		checkpoint = resolve_resume_checkpoint(resume_run_name)
+		print(f"Resuming training from: {checkpoint}")
+		model = YOLO(str(checkpoint))
+		model.train(resume=True)
+	else:
+		model = YOLO("yolo26n.pt")
+		# Uses a lightweight model by default for faster iteration.
+		model.train(
+			data=str(YAML_PATH),
+			epochs=50,
+			imgsz=640,  # 1280 can improve detail, but 640 is faster.
+			batch=16,
+			workers=0,
+			project=str(RUNS_TRAIN_ROOT),
+			name="football_yolo26n",
+		)
 
 	return 0
 
 
 if __name__ == "__main__":
-	raise SystemExit(main())
+	parser = argparse.ArgumentParser(
+		description="Train YOLO model or resume from an existing run name."
+	)
+	parser.add_argument(
+		"resume_run_name",
+		nargs="?",
+		help="Optional run name to resume, e.g. football_yolo26n5",
+	)
+	args = parser.parse_args()
+	raise SystemExit(main(args.resume_run_name))
