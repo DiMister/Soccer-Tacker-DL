@@ -14,17 +14,6 @@ Resume command format:
 python training/TrainYOLO.py football_yolo26n{num}
 ```
 
-Example:
-
-```bash
-python training/TrainYOLO.py football_yolo26n5
-```
-
-This looks for the checkpoint at:
-
-```text
-runs/train/football_yolo26n5/weights/last.pt
-```
 
 If the checkpoint file does not exist, the script will stop and print the missing path.
 
