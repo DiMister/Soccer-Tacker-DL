@@ -106,9 +106,9 @@ def main(resume_run_name: str | None = None) -> int:
 			data=str(YAML_PATH),
 			epochs=100,
 			imgsz=640, # could be 1280, but 640 is faster for testing
-			batch=16,
-			workers=6,
-			project=str(REPO_ROOT / "runs" / "train"),
+			batch=8,              # Lower batch to reduce CPU RAM pressure in worker pipelines
+			workers=2,            # Windows worker spawning can multiply memory usage
+			project=str(object=REPO_ROOT / "runs" / "train"),
 			name="football_yolo26n",
 	
 			# --- Advanced Parameters ---
@@ -119,7 +119,7 @@ def main(resume_run_name: str | None = None) -> int:
 			
 			# --- Augmentations for Sports ---
 			mosaic=1.0,            # Combine 4 images to help with small objects
-			mixup=0.1,             # Help the model handle occlusions/crowds
+			mixup=0.0,             # Disable mixup to avoid large temporary allocations in workers
 			perspective=0.0005,    # Simulate different camera angles
 			close_mosaic=10,       # Turn off mosaic for the last 10 epochs for fine-tuning
 		)

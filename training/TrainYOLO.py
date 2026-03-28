@@ -105,9 +105,9 @@ def main(resume_run_name: str | None = None) -> int:
 		# Uses a lightweight model by default for faster iteration.
 		model.train(
 			data=str(YAML_PATH),
-			epochs=50,
+			epochs=100,
 			imgsz=640,  # 1280 can improve detail, but 640 is faster.
-			batch=16,
+			batch=8,
 			workers=0,
 			project=str(RUNS_TRAIN_ROOT),
 			name="football_yolo26n",

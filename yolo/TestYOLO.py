@@ -60,7 +60,8 @@ def draw_boxes(
 
 def main() -> int:
 	folder_number = 4
-	image_number = 1
+	# folder_name = "v_gQNyhv8y0QY_c003"  # Optional: overrides folder_number if set
+	image_number = 4
 	#model_path = "yolov8n.pt"
 
 	conf_threshold = 0.25
@@ -70,14 +71,17 @@ def main() -> int:
 	repo_root = Path(__file__).resolve().parent.parent
 	val_root = repo_root / "dataset_football" / "val"
 	model_path = str(
-		repo_root / "runs" / "train" / "football_yolo26n2" / "weights" / "best.pt"
+		repo_root / "runs" / "train" / "football_yolo26n3" / "weights" / "best.pt"
 	)
+	# model_path = repo_root / "yolo26n.pt"
+ 
 	if not val_root.exists():
 		raise FileNotFoundError(f"Validation folder not found: {val_root}")
 
 	folders = list_val_folders(val_root)
 	if not folders:
 		raise FileNotFoundError(f"No validation folders found in {val_root}")
+
 
 	folder_index = folder_number - 1
 	if folder_index < 0 or folder_index >= len(folders):
@@ -87,7 +91,6 @@ def main() -> int:
 		raise ValueError(
 			f"Folder number out of range. Available folders:\n{available}"
 		)
-
 	folder_path = folders[folder_index]
 	image_path = resolve_image_path(folder_path, image_number)
 
