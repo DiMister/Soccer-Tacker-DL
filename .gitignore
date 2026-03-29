@@ -1,6 +1,7 @@
 dataset_football/
 yolo*.pt
 runs/
+training/football.yaml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
