@@ -8,7 +8,7 @@ from ultralytics import YOLO
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DATA_YAML = str(REPO_ROOT / "training" / "football.yaml")
 MODEL_A = str(REPO_ROOT / "yolo26n3_100epoch_best.pt")
-MODEL_B = str(REPO_ROOT / "runs" / "train" / "football_yolo26n3" / "weights" / "best.pt")
+MODEL_B = str(REPO_ROOT / "fine_tuned_models" / "mosaic_tuned_yolo" / "weights" / "best.pt")
 SPLIT = "val"
 IMGSZ = 640
 CONF = 0.001 # Lowered confidence threshold to capture more predictions for comparison
