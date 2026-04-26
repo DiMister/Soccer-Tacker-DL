@@ -16,6 +16,7 @@ VAL_DIR = Path("dataset_football") / "val"
 OUTPUT_DIR = Path("runs") / "tracking" / "botsort_val"
 
 # Keep this as botsort.yaml to use BoT-SORT.
+# Options: "botsort.yaml", "bytetrack.yaml"
 TRACKER_CFG = "botsort.yaml"
 
 CONF = 0.25
