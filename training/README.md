@@ -17,12 +17,6 @@ python training/TrainYOLO.py football_yolo26n{num}
 
 If the checkpoint file does not exist, the script will stop and print the missing path.
 
-Might have to install different version of torch if DeviceDetect.py doesn't find your GPU
-
-```bash
-pip uninstall torch torchvision torchaudio -y
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-```
 
 # Help training paramaters in "Advanced Training"
 
