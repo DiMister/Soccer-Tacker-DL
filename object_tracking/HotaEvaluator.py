@@ -199,9 +199,10 @@ def run_tracking_and_save(
 	return pred_file
 
 
-def compute_hota(
-	gt_by_seq: Dict[str, FrameDetections], pred_by_seq: Dict[str, FrameDetections]
-) -> Dict[str, float]:
+def compute_hota_per_seq(
+	gt_frames: FrameDetections, pred_frames: FrameDetections
+) -> Tuple[float, float, float]:
+	"""Compute HOTA, DetA, AssA for a single sequence."""
 	alphas = [a / 100 for a in range(5, 100, 5)]
 	hota_values: List[float] = []
 	deta_values: List[float] = []
@@ -212,33 +213,30 @@ def compute_hota(
 		fp = 0
 		fn = 0
 		pair_tp: PairCounts = defaultdict(int)
-		gt_match_count: Dict[Tuple[str, int], int] = defaultdict(int)
-		pr_match_count: Dict[Tuple[str, int], int] = defaultdict(int)
+		gt_match_count: Dict[Tuple[int], int] = defaultdict(int)
+		pr_match_count: Dict[Tuple[int], int] = defaultdict(int)
 
-		for seq_name, gt_frames in gt_by_seq.items():
-			pred_frames = pred_by_seq.get(seq_name, {})
-			all_frames = sorted(set(gt_frames.keys()) | set(pred_frames.keys()))
+		all_frames = sorted(set(gt_frames.keys()) | set(pred_frames.keys()))
+		for frame_id in all_frames:
+			gt_items = gt_frames.get(frame_id, [])
+			pr_items = pred_frames.get(frame_id, [])
 
-			for frame_id in all_frames:
-				gt_items = gt_frames.get(frame_id, [])
-				pr_items = pred_frames.get(frame_id, [])
+			gt_ids = [gid for gid, _ in gt_items]
+			pr_ids = [pid for pid, _ in pr_items]
+			gt_boxes = [box for _, box in gt_items]
+			pr_boxes = [box for _, box in pr_items]
 
-				gt_ids = [gid for gid, _ in gt_items]
-				pr_ids = [pid for pid, _ in pr_items]
-				gt_boxes = [box for _, box in gt_items]
-				pr_boxes = [box for _, box in pr_items]
+			matches = match_frame(gt_boxes, pr_boxes, alpha)
+			tp += len(matches)
+			fp += len(pr_items) - len(matches)
+			fn += len(gt_items) - len(matches)
 
-				matches = match_frame(gt_boxes, pr_boxes, alpha)
-				tp += len(matches)
-				fp += len(pr_items) - len(matches)
-				fn += len(gt_items) - len(matches)
-
-				for g_idx, p_idx in matches:
-					g_key = (seq_name, gt_ids[g_idx])
-					p_key = (seq_name, pr_ids[p_idx])
-					pair_tp[(seq_name, gt_ids[g_idx], pr_ids[p_idx])] += 1
-					gt_match_count[g_key] += 1
-					pr_match_count[p_key] += 1
+			for g_idx, p_idx in matches:
+				g_id = gt_ids[g_idx]
+				p_id = pr_ids[p_idx]
+				pair_tp[(g_id, p_id)] += 1
+				gt_match_count[g_id] += 1
+				pr_match_count[p_id] += 1
 
 		deta = (tp / (tp + fp + fn)) if (tp + fp + fn) > 0 else 0.0
 
@@ -246,11 +244,9 @@ def compute_hota(
 			assa = 0.0
 		else:
 			assoc_sum = 0.0
-			for (seq_name, gt_id, pr_id), pair_count in pair_tp.items():
-				g_key = (seq_name, gt_id)
-				p_key = (seq_name, pr_id)
-				fpa = pr_match_count[p_key] - pair_count
-				fna = gt_match_count[g_key] - pair_count
+			for (gt_id, pr_id), pair_count in pair_tp.items():
+				fpa = pr_match_count[pr_id] - pair_count
+				fna = gt_match_count[gt_id] - pair_count
 				den = pair_count + fpa + fna
 				ass_iou = (pair_count / den) if den > 0 else 0.0
 				assoc_sum += pair_count * ass_iou
@@ -261,11 +257,38 @@ def compute_hota(
 		deta_values.append(deta)
 		assa_values.append(assa)
 
-	return {
-		"HOTA": float(np.mean(hota_values)) if hota_values else 0.0,
-		"DetA": float(np.mean(deta_values)) if deta_values else 0.0,
-		"AssA": float(np.mean(assa_values)) if assa_values else 0.0,
+	hota_mean = float(np.mean(hota_values)) if hota_values else 0.0
+	deta_mean = float(np.mean(deta_values)) if deta_values else 0.0
+	assa_mean = float(np.mean(assa_values)) if assa_values else 0.0
+	return hota_mean, deta_mean, assa_mean
+
+
+def compute_hota(
+	gt_by_seq: Dict[str, FrameDetections], pred_by_seq: Dict[str, FrameDetections]
+) -> Tuple[Dict[str, float], Dict[str, Tuple[float, float, float]]]:
+	"""Compute HOTA metrics. Returns (overall_metrics, per_seq_metrics)."""
+	per_seq_metrics: Dict[str, Tuple[float, float, float]] = {}
+
+	for seq_name, gt_frames in gt_by_seq.items():
+		pred_frames = pred_by_seq.get(seq_name, {})
+		hota, deta, assa = compute_hota_per_seq(gt_frames, pred_frames)
+		per_seq_metrics[seq_name] = (hota, deta, assa)
+
+	# Compute overall averages
+	if per_seq_metrics:
+		hota_mean = float(np.mean([m[0] for m in per_seq_metrics.values()]))
+		deta_mean = float(np.mean([m[1] for m in per_seq_metrics.values()]))
+		assa_mean = float(np.mean([m[2] for m in per_seq_metrics.values()]))
+	else:
+		hota_mean = deta_mean = assa_mean = 0.0
+
+	overall_metrics = {
+		"HOTA": hota_mean,
+		"DetA": deta_mean,
+		"AssA": assa_mean,
 	}
+
+	return overall_metrics, per_seq_metrics
 
 
 def main() -> None:
@@ -274,29 +297,58 @@ def main() -> None:
 	if not VAL_DIR.exists():
 		raise FileNotFoundError(f"Validation directory not found: {VAL_DIR}")
 
-	model = YOLO(str(MODEL_PATH))
 	pred_root = OUTPUT_DIR / MODEL_PATH.stem / "labels"
 	sequences = list(iter_sequences(VAL_DIR, SEQUENCE))
+
+	# Check if all prediction files already exist
+	all_pred_files_exist = True
+	for seq_path in sequences:
+		gt_file = seq_path / "gt" / "gt.txt"
+		if not gt_file.exists():
+			continue
+		pred_file = pred_root / f"{seq_path.name}.txt"
+		if not pred_file.exists():
+			all_pred_files_exist = False
+			break
 
 	gt_by_seq: Dict[str, FrameDetections] = {}
 	pred_by_seq: Dict[str, FrameDetections] = {}
 
+	# Load or generate predictions
+	if all_pred_files_exist:
+		print(f"[INFO] Prediction files already exist at {pred_root}. Skipping tracking step.")
+	else:
+		print(f"[INFO] Running tracking inference...")
+		model = YOLO(str(MODEL_PATH))
+
+		for seq_path in sequences:
+			gt_file = seq_path / "gt" / "gt.txt"
+			if not gt_file.exists():
+				print(f"[WARN] Skipping {seq_path.name}, gt file missing: {gt_file}")
+				continue
+
+			run_tracking_and_save(
+				model=model,
+				seq_path=seq_path,
+				tracker=TRACKER,
+				conf=CONF,
+				iou=IOU,
+				imgsz=IMGSZ,
+				device=DEVICE,
+				pred_dir=pred_root,
+			)
+
+	# Load ground truth and predictions from disk
 	for seq_path in sequences:
 		gt_file = seq_path / "gt" / "gt.txt"
 		if not gt_file.exists():
 			print(f"[WARN] Skipping {seq_path.name}, gt file missing: {gt_file}")
 			continue
 
-		pred_file = run_tracking_and_save(
-			model=model,
-			seq_path=seq_path,
-			tracker=TRACKER,
-			conf=CONF,
-			iou=IOU,
-			imgsz=IMGSZ,
-			device=DEVICE,
-			pred_dir=pred_root,
-		)
+		pred_file = pred_root / f"{seq_path.name}.txt"
+		if not pred_file.exists():
+			print(f"[WARN] Skipping {seq_path.name}, pred file missing: {pred_file}")
+			continue
 
 		gt_by_seq[seq_path.name] = parse_mot_txt(gt_file)
 		pred_by_seq[seq_path.name] = parse_mot_txt(pred_file)
@@ -304,7 +356,10 @@ def main() -> None:
 	if not gt_by_seq:
 		raise RuntimeError("No valid sequences were evaluated.")
 
-	metrics = compute_hota(gt_by_seq, pred_by_seq)
+	metrics, per_seq_metrics = compute_hota(gt_by_seq, pred_by_seq)
+
+	# Sort sequences by HOTA score
+	sorted_seqs = sorted(per_seq_metrics.items(), key=lambda x: x[1][0], reverse=True)
 
 	print("\n=== HOTA Evaluation (Validation Set) ===")
 	print(f"Model: {MODEL_PATH}")
@@ -314,6 +369,18 @@ def main() -> None:
 	print(f"DetA: {metrics['DetA']:.4f}")
 	print(f"AssA: {metrics['AssA']:.4f}")
 	print(f"Prediction files: {pred_root}")
+
+	# Display top 3 videos
+	print("\n=== Top 3 Videos ===")
+	for rank, (seq_name, (hota, deta, assa)) in enumerate(sorted_seqs[:3], 1):
+		print(f"{rank}. {seq_name}")
+		print(f"   HOTA: {hota:.4f} | DetA: {deta:.4f} | AssA: {assa:.4f}")
+
+	# Display bottom 3 videos
+	print("\n=== Bottom 3 Videos ===")
+	for rank, (seq_name, (hota, deta, assa)) in enumerate(sorted_seqs[-3:], 1):
+		print(f"{rank}. {seq_name}")
+		print(f"   HOTA: {hota:.4f} | DetA: {deta:.4f} | AssA: {assa:.4f}")
 
 
 if __name__ == "__main__":

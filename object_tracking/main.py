@@ -25,7 +25,7 @@ IMGSZ = 1280
 DEVICE: Optional[str] = None  # e.g. "cpu", "0"
 
 SAVE_VIDEO = True
-SEQUENCE: Optional[str] = None  # e.g. "v_2QhNRucNC7E_c017"
+SEQUENCE: Optional[str] = "v_ITo3sCnpw_k_c007"  # e.g. "v_2QhNRucNC7E_c017"
 
 
 def to_numpy(data: object) -> np.ndarray:
